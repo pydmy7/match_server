@@ -7,8 +7,15 @@
 #include <thrift/transport/TServerSocket.h>
 #include <thrift/transport/TBufferTransports.h>
 
+#include <string>
 #include <iostream>
-using namespace std;
+#include <cstdio>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <vector>
+#include <unistd.h>
 
 using namespace ::apache::thrift;
 using namespace ::apache::thrift::protocol;
@@ -16,6 +23,47 @@ using namespace ::apache::thrift::transport;
 using namespace ::apache::thrift::server;
 
 using namespace  ::match_service;
+
+using namespace std;
+
+struct Task {
+    User user;
+    string type;
+};
+
+struct MessageQueue {
+    queue<Task> Q;
+    mutex m;
+    condition_variable cv;
+}message_queue;
+
+class Pool {
+    public:
+        void save_result(int ida, int idb) {
+            printf("Match Result: %d %d\n", ida, idb);
+        }
+        void match() {
+            while (users.size() > 1) {
+                auto a = users[0], b = users[1];
+                users.erase(users.begin());
+                users.erase(users.begin());
+
+                save_result(a.id, b.id);
+            }
+        }
+        void add(User user) {
+            users.push_back(user);
+        }
+        void remove(User user) {
+            for (uint32_t i=0; i < users.size(); i++)
+                if (users[i].id == user.id) {
+                    users.erase(users.begin() + i);
+                    break;
+                }
+        }
+    private:
+        vector<User> users;
+}pool;
 
 class MatchHandler : virtual public MatchIf {
     public:
@@ -34,6 +82,11 @@ class MatchHandler : virtual public MatchIf {
         int32_t add_user(const User& user, const std::string& info) {
             // Your implementation goes here
             printf("add_user\n");
+
+            unique_lock<mutex> lck(message_queue.m);
+            message_queue.Q.push(Task{user, "add"});
+            message_queue.cv.notify_all();
+
             return 0;
         }
 
@@ -48,10 +101,36 @@ class MatchHandler : virtual public MatchIf {
         int32_t remove_user(const User& user, const std::string& info) {
             // Your implementation goes here
             printf("remove_user\n");
+
+            unique_lock<mutex> lck(message_queue.m);
+            message_queue.Q.push(Task{user, "remove"});
+            message_queue.cv.notify_all();
+
             return 0;
         }
 
 };
+
+void consume_task() {
+    while (true) {
+        unique_lock<mutex> lck(message_queue.m);
+        if (message_queue.Q.empty()) {
+            message_queue.cv.wait(lck);
+        }
+        else {
+            auto task = message_queue.Q.front();
+            message_queue.Q.pop();
+            lck.unlock();
+
+            //do task
+
+            if (task.type == "add") pool.add(task.user);
+            else if (task.type == "remove")pool.remove(task.user);
+
+            pool.match();
+        }
+    }
+}
 
 int main(int argc, char **argv) {
     int port = 9090;
@@ -65,6 +144,9 @@ int main(int argc, char **argv) {
     //
     cout << "Start Match Server" <<endl;
     //
+
+    thread matching_thrift(consume_task);
+
     server.serve();
     return 0;
 }
