@@ -65,11 +65,20 @@ class Pool {
         }
         void match() {
             while (users.size() > 1) {
-                auto a = users[0], b = users[1];
-                users.erase(users.begin());
-                users.erase(users.begin());
-
-                save_result(a.id, b.id);
+                sort(users.begin(), users.end(), [&](User& lhs, User& rhs){
+                    return lhs.score < rhs.score;
+                });
+                bool flag = true;
+                for(uint32_t i = 1;i < users.size(); i ++) {
+                    User a=users[i-1], b=users[i];
+                    if(b.score - a.score <= 50){
+                        users.erase(users.begin() + i - 1, users.begin() + i + 1);
+                        save_result(a.id, b.id);
+                        flag = false;
+                        break;
+                    }
+                }
+                if(flag)break;
             }
         }
         void add(User user) {
@@ -136,7 +145,10 @@ void consume_task() {
     while (true) {
         unique_lock<mutex> lck(message_queue.m);
         if (message_queue.Q.empty()) {
-            message_queue.cv.wait(lck);
+            //message_queue.cv.wait(lck);
+            lck.unlock();
+            pool.match();
+            sleep(1);
         }
         else {
             auto task = message_queue.Q.front();
@@ -171,4 +183,3 @@ int main(int argc, char **argv) {
     server.serve();
     return 0;
 }
-
