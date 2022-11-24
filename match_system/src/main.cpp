@@ -44,7 +44,7 @@ struct MessageQueue {
     queue<Task> Q;
     mutex m;
     condition_variable cv;
-}message_queue;
+} message_queue;
 
 class Pool {
     public:
@@ -60,7 +60,7 @@ class Pool {
                 transport->open();
 
                 int ans = client.save_data("acs_2461", "c299a899", ida, idb);
-                if(ans==0)puts("success");
+                if(ans==0) puts("success");
                 else puts("failed");
 
                 transport->close();
@@ -80,13 +80,13 @@ class Pool {
 
         void match() {
 
-            for(uint32_t i = 0; i<wt.size(); i++)++wt[i];//等待秒数+1
+            for(uint32_t i = 0; i < wt.size(); ++i) ++wt[i];  // 等待秒数+1
 
             while (users.size() > 1) {
                 bool flag = true;
-                for(uint32_t i = 0; i < users.size(); i ++) {
-                    for(uint32_t j = i + 1; j< users.size(); j++) {
-                        if(check_match(i, j)){
+                for(uint32_t i = 0; i < users.size(); ++i) {
+                    for(uint32_t j = i + 1; j < users.size(); ++j) {
+                        if (check_match(i, j)) {
                             User a = users[i], b = users[j];
                             users.erase(users.begin() + j);
                             users.erase(users.begin() + i);
@@ -107,7 +107,7 @@ class Pool {
             wt.push_back(0);
         }
         void remove(User user) {
-            for (uint32_t i=0; i < users.size(); i++)
+            for (uint32_t i = 0; i < users.size(); ++i)
                 if (users[i].id == user.id) {
                     users.erase(users.begin() + i);
                     wt.erase(wt.begin() + i);
@@ -116,7 +116,7 @@ class Pool {
         }
     private:
         vector<User> users;
-        vector<int> wt;//wait_time
+        vector<int> wt;  // wait_time
 }pool;
 
 class MatchHandler : virtual public MatchIf {
